@@ -129,6 +129,25 @@
   .money-total { font-size: 28px; font-weight: 800; color: var(--red); }
   .copy { font-size: 12px; padding: 3px 8px; border-radius: 8px; border: 1px solid var(--line); background: #fff; cursor: pointer; margin-left: 6px; }
 
+  /* AI */
+  .ai { background: linear-gradient(135deg, #fff 0%, var(--gold-soft) 100%); border: 2px solid var(--gold); border-radius: 18px; padding: 16px; margin-top: 16px; box-shadow: var(--shadow); }
+  .ai h2 { margin: 0 0 4px; font-size: 20px; }
+  .ai-row { display: flex; gap: 8px; margin-top: 10px; }
+  .ai textarea { flex: 1; font: inherit; border: 2px solid var(--line); border-radius: 12px; padding: 10px 12px; resize: vertical; min-height: 46px; background: #fff; color: var(--ink); }
+  .ai textarea:focus { outline: 0; border-color: var(--red); }
+  .ai .btn.send { background: var(--red); color: #fff; align-self: stretch; }
+  .ai .btn.send:disabled { opacity: .6; cursor: wait; }
+  .ai-setup { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .ai-setup input { font: inherit; font-size: 14px; border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; flex: 1 1 140px; min-width: 0; }
+  .examples { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .examples button { font: inherit; font-size: 12px; border: 1px dashed var(--gold); background: #fff; border-radius: 999px; padding: 3px 10px; cursor: pointer; color: var(--ink); }
+  .bubble { margin-top: 12px; background: #fff; border-radius: 14px; padding: 12px 14px; border-left: 5px solid var(--green); white-space: pre-wrap; }
+  .bubble.err { border-left-color: var(--red); }
+  .bubble.wait { border-left-color: var(--gold); color: var(--muted); }
+  .ledger-totals { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; margin-bottom: 12px; }
+  .ledger-totals div { background: var(--gold-soft); border-radius: 12px; padding: 10px 12px; }
+  .ledger-totals b { display: block; font-size: 18px; }
+
   .hide { display: none !important; }
   mark { background: #ffe58a; border-radius: 3px; }
   .loading { text-align: center; padding: 30px; color: var(--muted); }
@@ -155,17 +174,39 @@
 
 <nav class="tabs" id="tabs">
   <a href="#nhanh">⚡ Xem nhanh</a>
+  <a href="#hoi-ai">🤖 Hỏi & ghi</a>
   <a href="#lich-trinh">🗓️ Lịch trình</a>
   <a href="#chuyen-bay">✈️ Chuyến bay</a>
   <a href="#khach-san">🏨 Khách sạn</a>
   <a href="#viec-can-lam">✅ Việc cần làm</a>
   <a href="#thanh-vien">👯 Thành viên</a>
   <a href="#chi-phi">💰 Chi phí</a>
+  <a href="#so-thu-chi">📒 Sổ thu chi</a>
   <a href="#tong-quan">📌 Lưu ý</a>
 </nav>
 
 <main>
   <div class="quick" id="nhanh"></div>
+
+  <div class="ai" id="hoi-ai">
+    <h2>🤖 Hỏi & ghi nhanh</h2>
+    <div class="muted">Gõ tự nhiên: báo đã trả tiền thì AI ghi vào Sổ thu chi, còn hỏi gì về chuyến đi thì AI trả lời.</div>
+    <div class="examples">
+      <button type="button">Ly đã trả ks 100000</button>
+      <button type="button">Mấy giờ phải có mặt ở sân bay?</button>
+      <button type="button">Ai đã trả những gì rồi?</button>
+      <button type="button">Ngày đi Hàng Châu đi tàu gì?</button>
+    </div>
+    <div class="ai-setup" id="ai-setup">
+      <input id="ai-name" placeholder="Tên bạn (vd: Ly)" autocomplete="nickname">
+      <input id="ai-code" placeholder="Mã nhóm 🔒" type="password" autocomplete="off">
+    </div>
+    <div class="ai-row">
+      <textarea id="ai-text" rows="2" maxlength="400" placeholder="Gõ câu hỏi hoặc khoản đã trả…"></textarea>
+      <button class="btn send" id="ai-send" type="button">Gửi ✨</button>
+    </div>
+    <div id="ai-out"></div>
+  </div>
 
   <div class="toolbar">
     <label class="search">🔎 <input id="q" type="search" placeholder="Tìm nhanh: visa, Tô Châu, hành lý, Nam…" autocomplete="off"></label>
@@ -186,6 +227,8 @@
 const SHEET_ID = "1YPn3qkNNzP56c4jtsewjcqWXkjwf2_-_NohyGLrmIX0";
 const TRIP_START = new Date("2026-12-23T21:45:00+07:00");
 const TRIP_END = new Date("2026-12-28T12:55:00+07:00");
+// Link Web App của Apps Script trong sheet (xem apps-script/ghi-nhanh.gs). Để trống thì ô Hỏi & ghi tạm tắt.
+const APPS_SCRIPT_URL = "";
 
 // Mỗi vùng dữ liệu được lấy riêng để Google không làm mất ô có kiểu dữ liệu khác cột.
 const RANGES = {
@@ -206,6 +249,7 @@ const RANGES = {
   rate:      ["Chi phí", "A4:B4", 0],
   costs:     ["Chi phí", "A6:E30", 1],
   todo:      ["Việc cần làm", "A4:E60", 1],
+  ledger:    ["Sổ thu chi", "A1:I1000", 1],
 };
 
 const $ = s => document.querySelector(s);
@@ -453,6 +497,22 @@ function render(D) {
       <td><b>${num(r[3]) ? vnd(num(r[3])) : '<span class="muted">chưa có</span>'}</b></td><td class="muted">${esc(r[4])}</td></tr>`).join("")}
     </table></div></div></section>`);
 
+  // ----- Sổ thu chi -----
+  const ledger = body(D.ledger).filter(r => r[1] || r[3]);
+  const paid = {};
+  for (const r of ledger) {
+    if (/nhận/i.test(r[2])) continue;
+    paid[r[1]] = (paid[r[1]] || 0) + num(r[6] || r[4]);
+  }
+  parts.push(`<section id="so-thu-chi"><h2>📒 Sổ thu chi</h2>
+    <div class="card"><div class="muted" style="margin-bottom:8px">Ai đã bỏ ra bao nhiêu (tính khoản Đã trả / Đã chuyển / Đã chi, quy ra ₫)</div>
+    <div class="ledger-totals">${Object.entries(paid).sort((a, b) => b[1] - a[1]).map(([n, v]) =>
+      `<div class="searchable">${esc(n)}<b>${vnd(v)}</b></div>`).join("") || '<span class="muted">Chưa có khoản nào</span>'}</div>
+    <div class="tbl-wrap"><table><tr><th>Lúc</th><th>Ai</th><th>Việc</th><th>Khoản</th><th>Số tiền</th></tr>
+    ${ledger.slice().reverse().map(r => `<tr class="searchable"><td class="muted">${esc(r[0])}</td><td><b>${esc(r[1])}</b></td>
+      <td>${esc(r[2])}</td><td>${esc(r[3])}</td><td><b>${esc(r[4])} ${r[5] === "CNY" ? "¥" : "₫"}</b></td></tr>`).join("")}
+    </table></div></div></section>`);
+
   // ----- Tổng quan / Lưu ý -----
   const ov = body(D.overview).filter(r => r[0]);
   const warn = ov.filter(r => /⚠/.test(r[0]));
@@ -525,6 +585,55 @@ async function load() {
   }
 }
 $("#reload").addEventListener("click", load);
+
+// ====== Hỏi & ghi nhanh ======
+const store = {
+  get: k => { try { return localStorage.getItem(k) || ""; } catch { return ""; } },
+  set: (k, v) => { try { localStorage.setItem(k, v); } catch {} },
+};
+$("#ai-name").value = store.get("ai-name");
+$("#ai-code").value = store.get("ai-code");
+if (store.get("ai-code")) $("#ai-setup").classList.add("hide");
+document.querySelectorAll(".examples button").forEach(b => b.addEventListener("click", () => { $("#ai-text").value = b.textContent; $("#ai-text").focus(); }));
+$("#ai-text").addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); ask(); } });
+$("#ai-send").addEventListener("click", ask);
+
+function bubble(html, cls = "") { $("#ai-out").innerHTML = `<div class="bubble ${cls}">${html}</div>`; }
+
+async function ask() {
+  const text = $("#ai-text").value.trim();
+  if (!text) return;
+  if (!APPS_SCRIPT_URL) return bubble("Ô này chưa bật, Trí đang cài đặt. Quay lại sau nhé 🙏", "err");
+  const code = $("#ai-code").value.trim(), by = $("#ai-name").value.trim();
+  if (!code) { $("#ai-setup").classList.remove("hide"); $("#ai-code").focus(); return bubble("Nhập mã nhóm trước đã (hỏi Trí) 🔒", "err"); }
+  $("#ai-send").disabled = true;
+  bubble("Đang nghĩ… 🤔", "wait");
+  try {
+    // Gửi dạng text/plain để trình duyệt không cần hỏi trước (CORS) với Apps Script
+    const res = await fetch(APPS_SCRIPT_URL, { method: "POST", body: JSON.stringify({ text, code, by }) });
+    const data = await res.json();
+    if (!data.ok) {
+      if (/mã nhóm/i.test(data.error || "")) { store.set("ai-code", ""); $("#ai-setup").classList.remove("hide"); }
+      return bubble(esc(data.error || "Có lỗi, thử lại nhé"), "err");
+    }
+    store.set("ai-code", code); store.set("ai-name", by);
+    $("#ai-setup").classList.add("hide");
+    let html = esc(data.tra_loi || "");
+    if (data.loai === "ghi" && data.muc.length) {
+      html = "✅ Đã ghi vào Sổ thu chi:<br>" + data.muc.map(m =>
+        `• <b>${esc(m.nguoi)}</b> ${esc(m.hanh_dong).toLowerCase()} ${esc(m.khoan)}: <b>${Number(m.so_tien).toLocaleString("vi-VN")} ${m.don_vi === "CNY" ? "¥" : "₫"}</b>`).join("<br>")
+        + (data.tra_loi ? `<br><span class="muted">${esc(data.tra_loi)}</span>` : "");
+      $("#ai-text").value = "";
+      setTimeout(load, 1500);
+    }
+    bubble(html);
+  } catch (e) {
+    console.error(e);
+    bubble("Không kết nối được trợ lý, thử lại sau nhé.", "err");
+  } finally {
+    $("#ai-send").disabled = false;
+  }
+}
 
 // đánh dấu tab đang xem
 const navLinks = [...document.querySelectorAll("#tabs a")];
