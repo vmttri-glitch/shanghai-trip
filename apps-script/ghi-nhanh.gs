@@ -8,7 +8,8 @@
  * Script chỉ đọc các tab của CHÍNH sheet này (không mở sheet hộ chiếu) và chỉ THÊM dòng vào "Sổ thu chi".
  *
  * Cài đặt: dán file này → Lưu → tải lại Google Sheet → menu "🤖 Trợ lý" → "Cài đặt".
- * Token GitHub và mã nhóm được lưu trong Script properties (GITHUB_TOKEN, PASSCODE), không nằm trong code.
+ * Khóa AI (Gemini "AIza…" hoặc token GitHub) và mã nhóm được lưu trong Script properties (GITHUB_TOKEN, PASSCODE), không nằm trong code.
+ * Lưu ý: GitHub Models hiện chặn yêu cầu từ máy chủ Google, nên nên dùng khóa Gemini miễn phí (aistudio.google.com/apikey).
  */
 
 const LEDGER_TAB = 'Sổ thu chi';
@@ -29,10 +30,10 @@ function onOpen() {
 function caiDat() {
   const ui = SpreadsheetApp.getUi();
   const props = PropertiesService.getScriptProperties();
-  const t = ui.prompt('Cài đặt trợ lý AI (1/2)', 'Dán token GitHub (bắt đầu bằng github_pat_):', ui.ButtonSet.OK_CANCEL);
+  const t = ui.prompt('Cài đặt trợ lý AI (1/2)', 'Dán khóa Gemini (bắt đầu bằng AIza) hoặc token GitHub (github_pat_):', ui.ButtonSet.OK_CANCEL);
   if (t.getSelectedButton() !== ui.Button.OK) return;
   const token = t.getResponseText().trim();
-  if (!/^(github_pat_|ghp_)/.test(token)) return ui.alert('Token có vẻ chưa đúng, thử lại nhé.');
+  if (!/^(github_pat_|ghp_|AIza)/.test(token)) return ui.alert('Khóa có vẻ chưa đúng, thử lại nhé.');
   const c = ui.prompt('Cài đặt trợ lý AI (2/2)', 'Mã nhóm (ai cũng hỏi được, nhưng phải nhập mã này mới ghi được vào Sổ thu chi):', ui.ButtonSet.OK_CANCEL);
   if (c.getSelectedButton() !== ui.Button.OK) return;
   const code = c.getResponseText().trim();
@@ -127,10 +128,21 @@ function askAI_(text, context, token) {
     context
   ].join('\n');
 
-  // Thử endpoint chính của GitHub Models trước, không được thì thử endpoint cũ
+  const content = /^AIza/.test(token) ? callGemini_(system, text, token) : callGitHub_(system, text, token);
+
+
+  // Model đôi khi trả lời chữ thường thay vì JSON: lấy khối {...} nếu có, không thì coi là câu trả lời
+  let out;
+  const m = String(content).match(/\{[\s\S]*\}/);
+  try { out = JSON.parse(m ? m[0] : content); } catch (err) { out = null; }
+  if (!out || typeof out !== 'object') out = { loai: 'hoi', muc: [], tra_loi: String(content).trim() };
+  out.muc = Array.isArray(out.muc) ? out.muc : [];
+  return out;
+}
+
+function callGitHub_(system, text, token) {
   const endpoints = [
-    { url: 'https://models.github.ai/inference/chat/completions', model: MODEL },
-    { url: 'https://models.inference.ai.azure.com/chat/completions', model: MODEL.replace(/^openai\//, '') }
+    { url: 'https://models.github.ai/inference/chat/completions', model: MODEL }
   ];
   const errors = [];
   let content = null;
@@ -158,15 +170,36 @@ function askAI_(text, context, token) {
       console.log('AI endpoint lỗi', ep.url, code, JSON.stringify(res.getAllHeaders()), raw.slice(0, 500));
     }
   }
-  if (content === null) throw new Error('Không gọi được AI. ' + errors.join(' | '));
+  if (content === null) throw new Error('Không gọi được AI của GitHub (GitHub có thể chặn máy chủ Google). ' + errors.join(' | '));
+  return content;
+}
 
-  // Model đôi khi trả lời chữ thường thay vì JSON: lấy khối {...} nếu có, không thì coi là câu trả lời
-  let out;
-  const m = String(content).match(/\{[\s\S]*\}/);
-  try { out = JSON.parse(m ? m[0] : content); } catch (err) { out = null; }
-  if (!out || typeof out !== 'object') out = { loai: 'hoi', muc: [], tra_loi: String(content).trim() };
-  out.muc = Array.isArray(out.muc) ? out.muc : [];
-  return out;
+/** Gemini (Google AI Studio, có gói miễn phí) – key bắt đầu bằng AIza. */
+function callGemini_(system, text, key) {
+  const models = ['gemini-flash-latest', 'gemini-2.5-flash'];
+  const errors = [];
+  for (let i = 0; i < models.length; i++) {
+    const res = UrlFetchApp.fetch('https://generativelanguage.googleapis.com/v1beta/models/' + models[i] + ':generateContent', {
+      method: 'post',
+      contentType: 'application/json',
+      headers: { 'x-goog-api-key': key },
+      payload: JSON.stringify({
+        systemInstruction: { parts: [{ text: system }] },
+        contents: [{ role: 'user', parts: [{ text: text }] }],
+        generationConfig: { temperature: 0.2, responseMimeType: 'application/json' }
+      }),
+      muteHttpExceptions: true
+    });
+    const code = res.getResponseCode();
+    const raw = res.getContentText();
+    if (code === 429) throw new Error('AI đang hết lượt miễn phí, thử lại sau');
+    try {
+      return JSON.parse(raw).candidates[0].content.parts.map(function (p) { return p.text || ''; }).join('');
+    } catch (err) {
+      errors.push(models[i] + ' → ' + code + ': ' + raw.slice(0, 150));
+    }
+  }
+  throw new Error('Không gọi được Gemini. ' + errors.join(' | '));
 }
 
 function appendLedger_(ss, items, text, by) {
