@@ -30,10 +30,10 @@ function onOpen() {
 function caiDat() {
   const ui = SpreadsheetApp.getUi();
   const props = PropertiesService.getScriptProperties();
-  const t = ui.prompt('Cài đặt trợ lý AI (1/2)', 'Dán khóa Gemini (bắt đầu bằng AIza) hoặc token GitHub (github_pat_):', ui.ButtonSet.OK_CANCEL);
+  const t = ui.prompt('Cài đặt trợ lý AI (1/2)', 'Dán khóa Gemini (AIza… hoặc AQ.…):', ui.ButtonSet.OK_CANCEL);
   if (t.getSelectedButton() !== ui.Button.OK) return;
   const token = t.getResponseText().trim();
-  if (!/^(github_pat_|ghp_|AIza)/.test(token)) return ui.alert('Khóa có vẻ chưa đúng, thử lại nhé.');
+  if (token.length < 20 || /\s/.test(token)) return ui.alert('Khóa có vẻ chưa đúng, thử lại nhé.');
   const c = ui.prompt('Cài đặt trợ lý AI (2/2)', 'Mã nhóm (ai cũng hỏi được, nhưng phải nhập mã này mới ghi được vào Sổ thu chi):', ui.ButtonSet.OK_CANCEL);
   if (c.getSelectedButton() !== ui.Button.OK) return;
   const code = c.getResponseText().trim();
@@ -128,7 +128,7 @@ function askAI_(text, context, token) {
     context
   ].join('\n');
 
-  const content = /^AIza/.test(token) ? callGemini_(system, text, token) : callGitHub_(system, text, token);
+  const content = /^(github_pat_|ghp_)/.test(token) ? callGitHub_(system, text, token) : callGemini_(system, text, token);
 
 
   // Model đôi khi trả lời chữ thường thay vì JSON: lấy khối {...} nếu có, không thì coi là câu trả lời
@@ -174,15 +174,18 @@ function callGitHub_(system, text, token) {
   return content;
 }
 
-/** Gemini (Google AI Studio, có gói miễn phí) – key bắt đầu bằng AIza. */
+/** Gemini (Google AI Studio, có gói miễn phí) – khóa dạng AIza… hoặc AQ.… */
 function callGemini_(system, text, key) {
   const models = ['gemini-flash-latest', 'gemini-2.5-flash'];
   const errors = [];
-  for (let i = 0; i < models.length; i++) {
+  // Khóa kiểu cũ (AIza) gửi qua x-goog-api-key; khóa kiểu mới thử thêm dạng Bearer
+  const auths = [{ 'x-goog-api-key': key }, { Authorization: 'Bearer ' + key }];
+  for (let n = 0; n < models.length * auths.length; n++) {
+    const i = Math.floor(n / auths.length);
     const res = UrlFetchApp.fetch('https://generativelanguage.googleapis.com/v1beta/models/' + models[i] + ':generateContent', {
       method: 'post',
       contentType: 'application/json',
-      headers: { 'x-goog-api-key': key },
+      headers: auths[n % auths.length],
       payload: JSON.stringify({
         systemInstruction: { parts: [{ text: system }] },
         contents: [{ role: 'user', parts: [{ text: text }] }],
@@ -196,7 +199,7 @@ function callGemini_(system, text, key) {
     try {
       return JSON.parse(raw).candidates[0].content.parts.map(function (p) { return p.text || ''; }).join('');
     } catch (err) {
-      errors.push(models[i] + ' → ' + code + ': ' + raw.slice(0, 150));
+      errors.push(models[i] + ' → ' + code + ': ' + raw.slice(0, 120));
     }
   }
   throw new Error('Không gọi được Gemini. ' + errors.join(' | '));

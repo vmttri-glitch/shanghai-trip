@@ -13,7 +13,7 @@ Mọi người gõ tự nhiên trên web, ví dụ "Ly đã trả ks 100000" (AI
 
 Cài một lần (người giữ sheet làm):
 
-1. **Tạo khóa AI miễn phí**: https://aistudio.google.com/apikey → *Create API key* → chép khóa (bắt đầu bằng `AIza`). (Token GitHub Models không dùng được vì GitHub chặn yêu cầu từ máy chủ Google.)
+1. **Tạo khóa AI miễn phí**: https://aistudio.google.com/apikey → *Create API key* → chép khóa (dạng `AIza…` hoặc `AQ.…`). (Token GitHub Models không dùng được vì GitHub chặn yêu cầu từ máy chủ Google.)
 2. **Dán script**: mở Google Sheet → *Tiện ích mở rộng → Apps Script* → xóa nội dung có sẵn → dán toàn bộ `apps-script/ghi-nhanh.gs` → Lưu.
 3. **Cài đặt**: tải lại Google Sheet → menu **🤖 Trợ lý → Cài đặt** → cấp quyền → dán khóa, nhập mã nhóm. AI trả lời thử là xong.
 4. **Triển khai**: trong Apps Script → *Triển khai → Tùy chọn triển khai mới → Ứng dụng web*; Thực thi với tư cách: **Tôi**; Ai có quyền truy cập: **Bất kỳ ai** → Triển khai → chép **URL ứng dụng web** (kết thúc bằng `/exec`).
