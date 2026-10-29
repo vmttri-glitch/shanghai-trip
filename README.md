@@ -13,13 +13,10 @@ Mọi người gõ tự nhiên trên web, ví dụ "Ly đã trả ks 100000" (AI
 
 Cài một lần (người giữ sheet làm):
 
-1. **Tạo token GitHub**: https://github.com/settings/personal-access-tokens/new → đặt tên, hạn 90 ngày → *Permissions → Account permissions → Models: Read-only* → Generate → chép token.
+1. **Tạo token GitHub**: https://github.com/settings/personal-access-tokens/new → đặt tên → *Permissions → Account permissions → Models: Read-only* → Generate → chép token.
 2. **Dán script**: mở Google Sheet → *Tiện ích mở rộng → Apps Script* → xóa nội dung có sẵn → dán toàn bộ `apps-script/ghi-nhanh.gs` → Lưu.
-3. **Thêm 2 thuộc tính**: *Cài đặt dự án (⚙️) → Thuộc tính tập lệnh*:
-   - `GITHUB_TOKEN` = token ở bước 1
-   - `PASSCODE` = một mã nhóm tự đặt (gửi mã này cho cả nhóm)
-4. **Thử**: chọn hàm `thu` → ▶ Chạy → cấp quyền khi được hỏi → xem kết quả ở Nhật ký thực thi.
-5. **Triển khai**: *Triển khai → Tùy chọn triển khai mới → Ứng dụng web*; Thực thi với tư cách: **Tôi**; Ai có quyền truy cập: **Bất kỳ ai** → Triển khai → chép **URL ứng dụng web** (kết thúc bằng `/exec`).
-6. Dán URL đó vào `APPS_SCRIPT_URL` trong `index.html`.
+3. **Cài đặt**: tải lại Google Sheet → menu **🤖 Trợ lý → Cài đặt** → cấp quyền → dán token, nhập mã nhóm. AI trả lời thử là xong.
+4. **Triển khai**: trong Apps Script → *Triển khai → Tùy chọn triển khai mới → Ứng dụng web*; Thực thi với tư cách: **Tôi**; Ai có quyền truy cập: **Bất kỳ ai** → Triển khai → chép **URL ứng dụng web** (kết thúc bằng `/exec`).
+5. Dán URL đó vào `APPS_SCRIPT_URL` trong `index.html`.
 
 An toàn: chỉ ai biết `PASSCODE` mới gửi được; tối đa 40 lượt/10 phút; AI chỉ *thêm dòng* vào Sổ thu chi, không sửa tab khác, và không đọc sheet hộ chiếu. Ai có quyền **sửa** sheet thì xem được script và token, nên chỉ cấp quyền sửa cho người trong nhóm (token chỉ có quyền gọi AI).

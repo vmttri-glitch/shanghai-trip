@@ -7,9 +7,8 @@
  *
  * Script chỉ đọc các tab của CHÍNH sheet này (không mở sheet hộ chiếu) và chỉ THÊM dòng vào "Sổ thu chi".
  *
- * Cần 2 Script properties (Cài đặt dự án → Thuộc tính tập lệnh):
- *   GITHUB_TOKEN  – fine-grained token của GitHub, chỉ cấp quyền "Models: Read"
- *   PASSCODE      – mã nhóm, ai biết mã mới gửi được (chống người lạ spam)
+ * Cài đặt: dán file này → Lưu → tải lại Google Sheet → menu "🤖 Trợ lý" → "Cài đặt".
+ * Token GitHub và mã nhóm được lưu trong Script properties (GITHUB_TOKEN, PASSCODE), không nằm trong code.
  */
 
 const LEDGER_TAB = 'Sổ thu chi';
@@ -18,6 +17,35 @@ const MODEL = 'openai/gpt-4.1-mini';
 const MAX_TEXT = 400;
 const MAX_REQUESTS_PER_10_MIN = 40;
 const TZ = 'Asia/Ho_Chi_Minh';
+
+function onOpen() {
+  SpreadsheetApp.getUi().createMenu('🤖 Trợ lý')
+    .addItem('Cài đặt', 'caiDat')
+    .addItem('Thử hỏi AI', 'thu')
+    .addToUi();
+}
+
+/** Hỏi token GitHub và mã nhóm một lần, lưu lại rồi thử gọi AI luôn. */
+function caiDat() {
+  const ui = SpreadsheetApp.getUi();
+  const props = PropertiesService.getScriptProperties();
+  const t = ui.prompt('Cài đặt trợ lý AI (1/2)', 'Dán token GitHub (bắt đầu bằng github_pat_):', ui.ButtonSet.OK_CANCEL);
+  if (t.getSelectedButton() !== ui.Button.OK) return;
+  const token = t.getResponseText().trim();
+  if (!/^(github_pat_|ghp_)/.test(token)) return ui.alert('Token có vẻ chưa đúng, thử lại nhé.');
+  const c = ui.prompt('Cài đặt trợ lý AI (2/2)', 'Mã nhóm (cả nhóm dùng mã này để gửi trên web):', ui.ButtonSet.OK_CANCEL);
+  if (c.getSelectedButton() !== ui.Button.OK) return;
+  const code = c.getResponseText().trim();
+  if (code.length < 6) return ui.alert('Mã nhóm nên dài ít nhất 6 ký tự.');
+  props.setProperties({ GITHUB_TOKEN: token, PASSCODE: code });
+  try {
+    const out = askAI_('Chào bạn! Mấy giờ bay về vậy?', buildContext_(SpreadsheetApp.getActiveSpreadsheet()), token);
+    ui.alert('✅ Xong! AI trả lời thử:\n\n' + out.tra_loi +
+      '\n\nBước cuối: mở Apps Script → Triển khai → Tùy chọn triển khai mới → Ứng dụng web → Ai có quyền truy cập: Bất kỳ ai → Triển khai, rồi gửi link /exec cho Claude.');
+  } catch (err) {
+    ui.alert('Đã lưu, nhưng gọi AI bị lỗi: ' + err.message);
+  }
+}
 
 function doGet() {
   return json_({ ok: true, msg: 'Trợ lý chuyến đi đang chạy' });
@@ -164,10 +192,9 @@ function json_(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
 }
 
-/** Bấm ▶ Chạy hàm này trong trình sửa Apps Script để thử (lần đầu sẽ hỏi cấp quyền). */
 function thu() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const props = PropertiesService.getScriptProperties();
   const r = askAI_('Mấy giờ bay về vậy?', buildContext_(ss), props.getProperty('GITHUB_TOKEN'));
-  console.log(JSON.stringify(r, null, 2));
+  SpreadsheetApp.getUi().alert(r.tra_loi);
 }
