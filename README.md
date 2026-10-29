@@ -19,4 +19,4 @@ Cài một lần (người giữ sheet làm):
 4. **Triển khai**: trong Apps Script → *Triển khai → Tùy chọn triển khai mới → Ứng dụng web*; Thực thi với tư cách: **Tôi**; Ai có quyền truy cập: **Bất kỳ ai** → Triển khai → chép **URL ứng dụng web** (kết thúc bằng `/exec`).
 5. Dán URL đó vào `APPS_SCRIPT_URL` trong `index.html`.
 
-An toàn: chỉ ai biết `PASSCODE` mới gửi được; tối đa 40 lượt/10 phút; AI chỉ *thêm dòng* vào Sổ thu chi, không sửa tab khác, và không đọc sheet hộ chiếu. Ai có quyền **sửa** sheet thì xem được script và token, nên chỉ cấp quyền sửa cho người trong nhóm (token chỉ có quyền gọi AI).
+An toàn: ai cũng hỏi được, nhưng chỉ ai biết mã nhóm (`PASSCODE`) mới ghi được vào Sổ thu chi; tối đa 40 lượt/10 phút; AI chỉ *thêm dòng* vào Sổ thu chi, không sửa tab khác, và không đọc sheet hộ chiếu. Ai có quyền **sửa** sheet thì xem được script và token, nên chỉ cấp quyền sửa cho người trong nhóm (token chỉ có quyền gọi AI).

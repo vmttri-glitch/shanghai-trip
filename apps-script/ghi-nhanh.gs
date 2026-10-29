@@ -33,7 +33,7 @@ function caiDat() {
   if (t.getSelectedButton() !== ui.Button.OK) return;
   const token = t.getResponseText().trim();
   if (!/^(github_pat_|ghp_)/.test(token)) return ui.alert('Token có vẻ chưa đúng, thử lại nhé.');
-  const c = ui.prompt('Cài đặt trợ lý AI (2/2)', 'Mã nhóm (cả nhóm dùng mã này để gửi trên web):', ui.ButtonSet.OK_CANCEL);
+  const c = ui.prompt('Cài đặt trợ lý AI (2/2)', 'Mã nhóm (ai cũng hỏi được, nhưng phải nhập mã này mới ghi được vào Sổ thu chi):', ui.ButtonSet.OK_CANCEL);
   if (c.getSelectedButton() !== ui.Button.OK) return;
   const code = c.getResponseText().trim();
   if (code.length < 6) return ui.alert('Mã nhóm nên dài ít nhất 6 ký tự.');
@@ -55,10 +55,9 @@ function doPost(e) {
   try {
     const body = JSON.parse((e && e.postData && e.postData.contents) || '{}');
     const props = PropertiesService.getScriptProperties();
+    // Ai cũng hỏi được; chỉ ghi vào Sổ thu chi khi có đúng mã nhóm
     const passcode = props.getProperty('PASSCODE');
-    if (!passcode || String(body.code || '').trim() !== passcode) {
-      return json_({ ok: false, error: 'Sai mã nhóm 🔒' });
-    }
+    const canWrite = !!passcode && String(body.code || '').trim() === passcode;
     const text = String(body.text || '').trim().slice(0, MAX_TEXT);
     const by = String(body.by || '').trim().slice(0, 40);
     if (!text) return json_({ ok: false, error: 'Bạn chưa gõ gì cả' });
@@ -75,6 +74,9 @@ function doPost(e) {
 
     let saved = [];
     if (result.loai === 'ghi') {
+      if (!canWrite) {
+        return json_({ ok: false, need_code: true, error: 'Muốn ghi vào Sổ thu chi thì nhập mã nhóm 🔒 (hỏi Trí)' });
+      }
       saved = appendLedger_(ss, result.muc, text, by);
     }
     return json_({ ok: true, loai: saved.length ? 'ghi' : 'hoi', tra_loi: result.tra_loi || '', muc: saved });

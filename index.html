@@ -197,9 +197,9 @@
       <button type="button">Ai đã trả những gì rồi?</button>
       <button type="button">Ngày đi Hàng Châu đi tàu gì?</button>
     </div>
-    <div class="ai-setup" id="ai-setup">
+    <div class="ai-setup hide" id="ai-setup">
       <input id="ai-name" placeholder="Tên bạn (vd: Ly)" autocomplete="nickname">
-      <input id="ai-code" placeholder="Mã nhóm 🔒" type="password" autocomplete="off">
+      <input id="ai-code" placeholder="Mã nhóm 🔒 (để ghi sổ)" type="password" autocomplete="off">
     </div>
     <div class="ai-row">
       <textarea id="ai-text" rows="2" maxlength="400" placeholder="Gõ câu hỏi hoặc khoản đã trả…"></textarea>
@@ -593,7 +593,6 @@ const store = {
 };
 $("#ai-name").value = store.get("ai-name");
 $("#ai-code").value = store.get("ai-code");
-if (store.get("ai-code")) $("#ai-setup").classList.add("hide");
 document.querySelectorAll(".examples button").forEach(b => b.addEventListener("click", () => { $("#ai-text").value = b.textContent; $("#ai-text").focus(); }));
 $("#ai-text").addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); ask(); } });
 $("#ai-send").addEventListener("click", ask);
@@ -605,7 +604,6 @@ async function ask() {
   if (!text) return;
   if (!APPS_SCRIPT_URL) return bubble("Ô này chưa bật, Trí đang cài đặt. Quay lại sau nhé 🙏", "err");
   const code = $("#ai-code").value.trim(), by = $("#ai-name").value.trim();
-  if (!code) { $("#ai-setup").classList.remove("hide"); $("#ai-code").focus(); return bubble("Nhập mã nhóm trước đã (hỏi Trí) 🔒", "err"); }
   $("#ai-send").disabled = true;
   bubble("Đang nghĩ… 🤔", "wait");
   try {
@@ -613,11 +611,10 @@ async function ask() {
     const res = await fetch(APPS_SCRIPT_URL, { method: "POST", body: JSON.stringify({ text, code, by }) });
     const data = await res.json();
     if (!data.ok) {
-      if (/mã nhóm/i.test(data.error || "")) { store.set("ai-code", ""); $("#ai-setup").classList.remove("hide"); }
+      if (data.need_code) { store.set("ai-code", ""); $("#ai-setup").classList.remove("hide"); $("#ai-code").focus(); }
       return bubble(esc(data.error || "Có lỗi, thử lại nhé"), "err");
     }
-    store.set("ai-code", code); store.set("ai-name", by);
-    $("#ai-setup").classList.add("hide");
+    if (data.loai === "ghi") { store.set("ai-code", code); store.set("ai-name", by); $("#ai-setup").classList.add("hide"); }
     let html = esc(data.tra_loi || "");
     if (data.loai === "ghi" && data.muc.length) {
       html = "✅ Đã ghi vào Sổ thu chi:<br>" + data.muc.map(m =>
