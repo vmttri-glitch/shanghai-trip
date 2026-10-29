@@ -127,27 +127,39 @@ function askAI_(text, context, token) {
     context
   ].join('\n');
 
-  const res = UrlFetchApp.fetch('https://models.github.ai/inference/chat/completions', {
-    method: 'post',
-    contentType: 'application/json',
-    headers: { Authorization: 'Bearer ' + token, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' },
-    payload: JSON.stringify({
-      model: MODEL,
-      temperature: 0.2,
-      response_format: { type: 'json_object' },
-      messages: [{ role: 'system', content: system }, { role: 'user', content: text }]
-    }),
-    muteHttpExceptions: true
-  });
-  if (res.getResponseCode() === 429) throw new Error('AI đang hết lượt miễn phí, thử lại sau');
-  if (res.getResponseCode() >= 300) throw new Error('AI lỗi ' + res.getResponseCode() + ': ' + res.getContentText().slice(0, 200));
-  const raw = res.getContentText();
-  let content;
-  try {
-    content = JSON.parse(raw).choices[0].message.content;
-  } catch (err) {
-    throw new Error('AI trả về không đúng dạng (mã ' + res.getResponseCode() + '): ' + raw.slice(0, 200));
+  // Thử endpoint chính của GitHub Models trước, không được thì thử endpoint cũ
+  const endpoints = [
+    { url: 'https://models.github.ai/inference/chat/completions', model: MODEL },
+    { url: 'https://models.inference.ai.azure.com/chat/completions', model: MODEL.replace(/^openai\//, '') }
+  ];
+  const errors = [];
+  let content = null;
+  for (let i = 0; i < endpoints.length && content === null; i++) {
+    const ep = endpoints[i];
+    const res = UrlFetchApp.fetch(ep.url, {
+      method: 'post',
+      contentType: 'application/json',
+      headers: { Authorization: 'Bearer ' + token, Accept: 'application/json' },
+      payload: JSON.stringify({
+        model: ep.model,
+        temperature: 0.2,
+        messages: [{ role: 'system', content: system }, { role: 'user', content: text }]
+      }),
+      muteHttpExceptions: true,
+      followRedirects: true
+    });
+    const code = res.getResponseCode();
+    const raw = res.getContentText();
+    if (code === 429) throw new Error('AI đang hết lượt miễn phí, thử lại sau');
+    try {
+      content = JSON.parse(raw).choices[0].message.content;
+    } catch (err) {
+      errors.push(ep.url.split('/')[2] + ' → ' + code + ': ' + raw.slice(0, 150));
+      console.log('AI endpoint lỗi', ep.url, code, JSON.stringify(res.getAllHeaders()), raw.slice(0, 500));
+    }
   }
+  if (content === null) throw new Error('Không gọi được AI. ' + errors.join(' | '));
+
   // Model đôi khi trả lời chữ thường thay vì JSON: lấy khối {...} nếu có, không thì coi là câu trả lời
   let out;
   const m = String(content).match(/\{[\s\S]*\}/);
