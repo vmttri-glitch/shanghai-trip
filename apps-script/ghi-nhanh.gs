@@ -130,7 +130,7 @@ function askAI_(text, context, token) {
   const res = UrlFetchApp.fetch('https://models.github.ai/inference/chat/completions', {
     method: 'post',
     contentType: 'application/json',
-    headers: { Authorization: 'Bearer ' + token, Accept: 'application/json' },
+    headers: { Authorization: 'Bearer ' + token, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' },
     payload: JSON.stringify({
       model: MODEL,
       temperature: 0.2,
@@ -141,8 +141,18 @@ function askAI_(text, context, token) {
   });
   if (res.getResponseCode() === 429) throw new Error('AI đang hết lượt miễn phí, thử lại sau');
   if (res.getResponseCode() >= 300) throw new Error('AI lỗi ' + res.getResponseCode() + ': ' + res.getContentText().slice(0, 200));
-  const content = JSON.parse(res.getContentText()).choices[0].message.content;
-  const out = JSON.parse(content.replace(/^```(json)?|```$/g, '').trim());
+  const raw = res.getContentText();
+  let content;
+  try {
+    content = JSON.parse(raw).choices[0].message.content;
+  } catch (err) {
+    throw new Error('AI trả về không đúng dạng (mã ' + res.getResponseCode() + '): ' + raw.slice(0, 200));
+  }
+  // Model đôi khi trả lời chữ thường thay vì JSON: lấy khối {...} nếu có, không thì coi là câu trả lời
+  let out;
+  const m = String(content).match(/\{[\s\S]*\}/);
+  try { out = JSON.parse(m ? m[0] : content); } catch (err) { out = null; }
+  if (!out || typeof out !== 'object') out = { loai: 'hoi', muc: [], tra_loi: String(content).trim() };
   out.muc = Array.isArray(out.muc) ? out.muc : [];
   return out;
 }
